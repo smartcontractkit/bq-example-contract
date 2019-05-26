@@ -4,12 +4,14 @@ import "chainlink/contracts/ChainlinkClient.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 /**
- * @title MyContract is an example contract which requests data from
+ * @title MyContract is an example futures contract which requests data from
  * the Chainlink network
  * @dev This contract is designed to work on multiple networks, including
  * local test networks
  */
 contract MyContract is ChainlinkClient, Ownable {
+
+  uint256 public constant SETTLEMENT_DELAY = 30 days;
 
   struct Agreement {
     address party1;
@@ -19,13 +21,21 @@ contract MyContract is ChainlinkClient, Ownable {
   }
 
   mapping(bytes32 => Agreement) public agreements;
+  mapping(uint256 => mapping(address => uint256)) public callValues;
 
   event Payout(
     address party,
     uint256 amount,
     uint256 callValue
   );
+
   event NewAgreement(
+    uint256 callValue,
+    address party,
+    uint256 amount
+  );
+
+  event EnteredAgreement(
     address party,
     address counterparty,
     uint256 amount,
@@ -56,6 +66,24 @@ contract MyContract is ChainlinkClient, Ownable {
   }
 
   /**
+   * @notice Allows a party to place a deposit for a given call value.
+   * @param _callValue The estimated gas price
+   */
+  function enterAgreement(uint256 _callValue) public payable {
+    callValues[_callValue][msg.sender] = callValues[_callValue][msg.sender].add(msg.value);
+    emit NewAgreement(_callValue, msg.sender, callValues[_callValue][msg.sender]);
+  }
+
+  /**
+   * @notice Allows a party to withdraw their position for a given call value.
+   * @param _callValue The estimated gas price
+   */
+  function withdraw(uint256 _callValue) public {
+    require(callValues[_callValue][msg.sender] > 0, "No deposit present");
+    msg.sender.transfer(callValues[_callValue][msg.sender]);
+  }
+
+  /**
    * @notice Creates a request to the specified Oracle contract address,
    * when called, will assume the caller is party1.
    * @dev This function ignores the stored Oracle contract address and
@@ -79,23 +107,31 @@ contract MyContract is ChainlinkClient, Ownable {
     payable
   {
     require(msg.value > 0, "No payment given");
-    Chainlink.Request memory req = buildChainlinkRequest(_jobId, this, this.fulfill.selector);
+    require(callValues[_callValue][_counterparty] >= msg.value, "Counterparty is not in agreement");
+    callValues[_callValue][_counterparty] = callValues[_callValue][_counterparty].sub(msg.value);
+    Chainlink.Request memory req = buildChainlinkRequest(_jobId, this, this.settleAgreement.selector);
+    req.addUint("until", now + SETTLEMENT_DELAY);
     req.add("date", _date);
     req.add("action", "date");
     req.add("copyPath", "gasPrice");
     req.addInt("times", 10000);
-    agreements[sendChainlinkRequestTo(_oracle, req, _payment)] = Agreement(msg.sender, _counterparty, msg.value, _callValue);
-    emit NewAgreement(msg.sender, _counterparty, msg.value, _callValue);
+    agreements[sendChainlinkRequestTo(_oracle, req, _payment)] = Agreement(
+      msg.sender,
+      _counterparty,
+      msg.value.mul(2),
+      _callValue
+    );
+    emit EnteredAgreement(msg.sender, _counterparty, msg.value, _callValue);
   }
 
   /**
-   * @notice The fulfill method from requests created by this contract
+   * @notice The settleAgreement method from requests created by this contract
    * @dev The recordChainlinkFulfillment protects this function from being called
    * by anyone other than the oracle address that the request was sent to
    * @param _requestId The ID that was generated for the request
    * @param _data The answer provided by the oracle
    */
-  function fulfill(bytes32 _requestId, uint256 _data)
+  function settleAgreement(bytes32 _requestId, uint256 _data)
     public
     recordChainlinkFulfillment(_requestId)
   {

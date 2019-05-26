@@ -17,7 +17,7 @@ contract('MyContract', accounts => {
   const payment = web3.utils.toWei('1')
   const date = '2019-05-25'
   const callValue = new web3.utils.BN(7000000000)
-  const payoutValue = 100
+  const agreementValue = web3.utils.toWei('1')
 
   let link, oc, cc
 
@@ -27,6 +27,37 @@ contract('MyContract', accounts => {
     cc = await MyContract.new(link.address, { from: maintainer })
     await oc.setFulfillmentPermission(oracleNode, true, {
       from: defaultAccount
+    })
+  })
+
+  describe('#enterAgreement', () => {
+    it('accepts ETH deposits for the specified callValue', async () => {
+      await cc.enterAgreement(callValue, {from: party2, value: agreementValue})
+      const amount = await cc.callValues.call(callValue, party2)
+      assert.equal(amount.toString(), agreementValue)
+    })
+  })
+
+  describe('#withdraw', () => {
+    context('if no deposit is present', () => {
+      it('reverts', async () => {
+        await h.assertActionThrows(async () => {
+          await cc.withdraw(callValue, {from: party2})
+        })
+      })
+    })
+
+    context('with a deposit', () => {
+      beforeEach(async () => {
+        await cc.enterAgreement(callValue, {from: party2, value: agreementValue})
+      })
+
+      it('allows the party to withdraw their balance', async () => {
+        const beforeBalance = new web3.utils.BN(await web3.eth.getBalance(party2))
+        await cc.withdraw(callValue, {from: party2})
+        const afterBalance = new web3.utils.BN(await web3.eth.getBalance(party2))
+        assert.isTrue(afterBalance.gt(beforeBalance))
+      })
     })
   })
 
@@ -41,7 +72,7 @@ contract('MyContract', accounts => {
             jobId,
             payment,
             date,
-            { from: party1, value: payoutValue }
+            { from: party1, value: agreementValue }
           )
         })
       })
@@ -54,7 +85,27 @@ contract('MyContract', accounts => {
         await link.transfer(cc.address, web3.utils.toWei('1', 'ether'))
       })
 
-      context('sending a request to a specific oracle contract address', () => {
+      context('without an agreement with the counterparty', () => {
+        it('reverts', async () => {
+          await h.assertActionThrows(async () => {
+            await cc.requestGasPriceAtDate(
+              party2,
+              callValue,
+              oc.address,
+              jobId,
+              payment,
+              date,
+              { from: party1, value: agreementValue }
+            )
+          })
+        })
+      })
+
+      context('with an agreement with the counterparty', () => {
+        beforeEach(async () => {
+          await cc.enterAgreement(callValue, {from: party2, value: agreementValue})
+        })
+
         it('triggers a log event in the new Oracle contract', async () => {
           let tx = await cc.requestGasPriceAtDate(
             party2,
@@ -63,7 +114,7 @@ contract('MyContract', accounts => {
             jobId,
             payment,
             date,
-            { from: party1, value: payoutValue }
+            { from: party1, value: agreementValue }
           )
           request = h.decodeRunRequest(tx.receipt.rawLogs[3])
           assert.equal(oc.address, tx.receipt.rawLogs[3].address)
@@ -78,8 +129,8 @@ contract('MyContract', accounts => {
     })
   })
 
-  describe('#fulfill', () => {
-    const expectedDiff = new web3.utils.BN(100)
+  describe('#settleAgreement', () => {
+    const expectedDiff = new web3.utils.BN(web3.utils.toWei('2'))
     let request
     let beforeParty1Balance
     let beforeParty2Balance
@@ -88,6 +139,7 @@ contract('MyContract', accounts => {
       const response = web3.eth.abi.encodeParameter('uint256', '7100000000')
       beforeEach(async () => {
         await link.transfer(cc.address, web3.utils.toWei('1', 'ether'))
+        await cc.enterAgreement(callValue, {from: party2, value: agreementValue})
         let tx = await cc.requestGasPriceAtDate(
           party2,
           callValue,
@@ -95,7 +147,7 @@ contract('MyContract', accounts => {
           jobId,
           payment,
           date,
-          { from: party1, value: payoutValue }
+          { from: party1, value: agreementValue }
         )
         beforeParty1Balance = new web3.utils.BN(await web3.eth.getBalance(party1))
         beforeParty2Balance = new web3.utils.BN(await web3.eth.getBalance(party2))
@@ -116,6 +168,7 @@ contract('MyContract', accounts => {
       const response = web3.eth.abi.encodeParameter('uint256', '6900000000')
       beforeEach(async () => {
         await link.transfer(cc.address, web3.utils.toWei('1', 'ether'))
+        await cc.enterAgreement(callValue, {from: party2, value: agreementValue})
         let tx = await cc.requestGasPriceAtDate(
           party2,
           callValue,
@@ -123,7 +176,7 @@ contract('MyContract', accounts => {
           jobId,
           payment,
           date,
-          { from: party1, value: payoutValue }
+          { from: party1, value: agreementValue }
         )
         beforeParty1Balance = new web3.utils.BN(await web3.eth.getBalance(party1))
         beforeParty2Balance = new web3.utils.BN(await web3.eth.getBalance(party2))
@@ -162,7 +215,7 @@ contract('MyContract', accounts => {
       const response = web3.eth.abi.encodeParameter('uint256', '6900000000')
       it('does not accept the data provided', async () => {
         await h.assertActionThrows(async () => {
-          await cc.fulfill(request.id, response, { from: stranger })
+          await cc.settleAgreement(request.id, response, { from: stranger })
         })
       })
     })
@@ -173,6 +226,7 @@ contract('MyContract', accounts => {
 
     beforeEach(async () => {
       await link.transfer(cc.address, web3.utils.toWei('1', 'ether'))
+      await cc.enterAgreement(callValue, {from: party2, value: agreementValue})
       let tx = await cc.requestGasPriceAtDate(
         party2,
         callValue,
@@ -180,7 +234,7 @@ contract('MyContract', accounts => {
         jobId,
         payment,
         date,
-        { from: party1, value: payoutValue }
+        { from: party1, value: agreementValue }
       )
       request = h.decodeRunRequest(tx.receipt.rawLogs[3])
     })
