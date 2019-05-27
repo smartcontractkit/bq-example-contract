@@ -71,7 +71,6 @@ contract('MyContract', accounts => {
             oc.address,
             jobId,
             payment,
-            date,
             { from: party1, value: agreementValue }
           )
         })
@@ -94,7 +93,6 @@ contract('MyContract', accounts => {
               oc.address,
               jobId,
               payment,
-              date,
               { from: party1, value: agreementValue }
             )
           })
@@ -113,7 +111,6 @@ contract('MyContract', accounts => {
             oc.address,
             jobId,
             payment,
-            date,
             { from: party1, value: agreementValue }
           )
           request = h.decodeRunRequest(tx.receipt.rawLogs[3])
@@ -146,7 +143,6 @@ contract('MyContract', accounts => {
           oc.address,
           jobId,
           payment,
-          date,
           { from: party1, value: agreementValue }
         )
         beforeParty1Balance = new web3.utils.BN(await web3.eth.getBalance(party1))
@@ -175,7 +171,6 @@ contract('MyContract', accounts => {
           oc.address,
           jobId,
           payment,
-          date,
           { from: party1, value: agreementValue }
         )
         beforeParty1Balance = new web3.utils.BN(await web3.eth.getBalance(party1))
@@ -233,7 +228,6 @@ contract('MyContract', accounts => {
         oc.address,
         jobId,
         payment,
-        date,
         { from: party1, value: agreementValue }
       )
       request = h.decodeRunRequest(tx.receipt.rawLogs[3])

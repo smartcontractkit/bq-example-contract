@@ -93,15 +93,13 @@ contract MyContract is ChainlinkClient, Ownable {
    * @param _oracle The Oracle contract address to send the request to
    * @param _jobId The bytes32 JobID to be executed
    * @param _payment The amount of payment in LINK to send to the oracle
-   * @param _date The date to calculate the gas price
    */
   function requestGasPriceAtDate(
     address _counterparty,
     uint256 _callValue,
     address _oracle,
     bytes32 _jobId,
-    uint256 _payment,
-    string _date
+    uint256 _payment
   )
     public
     payable
@@ -111,7 +109,6 @@ contract MyContract is ChainlinkClient, Ownable {
     callValues[_callValue][_counterparty] = callValues[_callValue][_counterparty].sub(msg.value);
     Chainlink.Request memory req = buildChainlinkRequest(_jobId, this, this.settleAgreement.selector);
     req.addUint("until", now + SETTLEMENT_DELAY);
-    req.add("date", _date);
     req.add("action", "date");
     req.add("copyPath", "gasPrice");
     req.addInt("times", 10000);
