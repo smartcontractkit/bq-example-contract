@@ -1,6 +1,6 @@
 # Google BigQuery Chainlink Example
 
-This example contract shows a use-case between a party and a counterparty on the result of the gasPrice for a specified date.
+This example contract shows an option contract between a party and a counterparty on the price of ETH.
 
 ## Installation
 

@@ -1,7 +1,7 @@
 {
-  "name": "chainlink-box",
+  "name": "chainlink-bq-example",
   "version": "0.6.0",
-  "description": "A Chainlink example in a Truffle box",
+  "description": "Example Options Contract with Chainlink and Google BigQuery",
   "scripts": {
     "compile": "./node_modules/.bin/truffle compile",
     "console:dev": "./node_modules/.bin/truffle console --network development",
@@ -13,9 +13,13 @@
   "license": "MIT",
   "dependencies": {
     "chainlink": "0.6.3",
-    "chainlink-test-helpers": "^0.6.0-3",
     "openzeppelin-solidity": "^1.12.0",
     "truffle-hdwallet-provider": "^1.0.8",
     "truffle": "5.0.13"
+  },
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "chainlink-test-helpers": "^0.6.0-3",
+    "openzeppelin-test-helpers": "^0.4.0"
   }
 }
